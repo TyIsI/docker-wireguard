@@ -1,0 +1,12 @@
+[Unit]
+Description=Docker Wireguard Service
+Requires=docker.service multi-user.target docker-pihole.service
+After=docker.service network-online.target docker-pihole.service
+
+[Service]
+Restart=always
+ExecStart=/var/containers/wireguard/attach
+ExecStop=/var/containers/wireguard/stop
+
+[Install]
+WantedBy=multi-user.target

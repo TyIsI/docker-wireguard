@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  wgtest:
+    # test
+    extends:
+      file: docker-compose.local.yml
+      service: wireguard
+    container_name: wgtest
+    env_file:
+      - wgtest.env
+    volumes:
+      - ./conf/wgtest:/data
+    ports:
+      - 51820:51820/udp
+    networks:
+      wgnet:
+        ipv4_address: 10.20.30.254
