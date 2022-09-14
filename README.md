@@ -11,7 +11,8 @@ I built this to be used with `docker-compose`.
 See the examples in the `examples` directory.
 
 - Use the `docker-compose.local.yml` file to add (shared) general local dependencies/modifications like custom dns servers for the containers.
-- Copy the `docker-compose.wg0.yml` and `wgtest.env` and customize them to fit your use.
+- Copy the `docker-compose.wg0.yml`, `wgtest.env` and `sample.env` and customize them to fit your use.
+- Add the relevant `docker-compose.*.yml` to the `COMPOSE_FILE` variable in `.env`
 
 ### Manually
 
@@ -27,6 +28,13 @@ Notes:
 Copy and adjust the `docker-wireguard.service` file to `/etc/systemd/system/`, adjust the paths in the file, run the command `systemctl enable docker-wireguard` to enable the service, and then run `systemctl start docker-wireguard`.
 
 ## Variables
+
+### `.env`
+
+| Variable | Usage |
+|---|---|
+| UPNP_ENABLED | Whether `upnpc` will be called on bringing the containers up |
+| COMPOSE_FILE | Specify which containers are to be brought up |
 
 ### Wireguard
 
