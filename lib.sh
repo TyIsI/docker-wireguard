@@ -36,10 +36,14 @@ upnp_remove() {
 }
 
 routes_add() {
+  echo "Adding route for $1"
+
   ip route add $1 via $2
 }
 
 routes_remove() {
+  echo "Removing route for $1"
+
   ip route delete $1 via $2
 }
 
@@ -110,34 +114,26 @@ lib() {
 
 attach() {
   compose_start
-
   compose_get_ports upnp_add
-
   compose_get_routes routes_add
-
   compose_attach
 }
 
 start() {
   compose_start
-
   compose_get_ports upnp_add
-
   compose_get_routes routes_add
 }
 
 stop() {
   compose_get_ports upnp_remove
-
   compose_get_routes routes_remove
-
   compose_stop
 }
 
 restart() {
-  echo "Restarting"
-  stop
-  start
+  ./stop
+  ./start
 }
 
 check() {
@@ -149,5 +145,7 @@ monitor() {
 }
 
 CMD=$(basename $0 | sed 's/\.sh//g')
+
+echo "${CMD^}ing..."
 
 $CMD

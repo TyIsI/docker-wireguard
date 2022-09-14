@@ -9,31 +9,29 @@ DEFAULT_ROUTER_V4_FILE=/data/default-router-v4
 addLocalRoutesV4() {
   DEFAULT_ROUTER=$(cat ${DEFAULT_ROUTER_V4_FILE})
 
-  echo "${LOCAL_SUBNETS}" | tr ',' '\n' | while read LOCAL_SUBNET ; do
-    if valid_ipv4_subnet ${LOCAL_SUBNET} ; then
+  echo "${LOCAL_SUBNETS}" | tr ',' '\n' | while read LOCAL_SUBNET; do
+    if valid_ipv4_subnet ${LOCAL_SUBNET}; then
       ip route add ${LOCAL_SUBNET} via ${DEFAULT_ROUTER}
     fi
   done
 }
 
 bootstrap() {
-  if [ ! -f /data/privatekey ] ; then
+  if [ ! -f /data/privatekey ]; then
     generatePrivateKey
   fi
-  
-  if [ ! -f /data/publickey ] ; then
+
+  if [ ! -f /data/publickey ]; then
     generatePublicKey
   fi
-  
-  if [ ! -f /data/base.conf ] ; then
-    generateBaseConfig
-  fi
+
+  generateBaseConfig
 }
 
 checkV6() {
   IPV6ADDRESSES=$(${IP} -f inet6 addr)
 
-  if [ "${IPV6ADDRESSES}" != "" ] ; then
+  if [ "${IPV6ADDRESSES}" != "" ]; then
     return true
   fi
 
@@ -64,8 +62,8 @@ generateBaseConfig() {
     echo "PrivateKey = $(cat /data/privatekey)"
     echo "ListenPort = ${SERVER_PORT:-51820}"
 
-    echo "${LOCAL_IPS}" | tr ',' '\n' | while read SERVER_IP ; do
-      if valid_ipv4_ip ${SERVER_IP} ; then
+    echo "${LOCAL_IPS}" | tr ',' '\n' | while read SERVER_IP; do
+      if valid_ipv4_ip ${SERVER_IP}; then
         echo "Address = ${SERVER_IP}"
       fi
     done
@@ -86,9 +84,9 @@ generatePeerConfigs() {
   echo -n "Generating peer configurations for peers ${PEERSET}..."
 
   {
-    for PEERSEQ in ${PEERSET} ; do
+    for PEERSEQ in ${PEERSET}; do
       PEER_BASE="PEER_${PEERSEQ}"
-  
+
       PEER_KEY=$(set | egrep "${PEER_BASE}_(PUBKEY|PUBLIC_KEY)" | cut -f2- -d'=')
       PEER_PSK=$(set | egrep "${PEER_BASE}_(PSK|PRE_SHARED_KEY)" | cut -f2- -d'=')
       PEER_ADDR=$(set | egrep "${PEER_BASE}_(ADDR|ADDRESS)" | cut -f2- -d'=')
@@ -96,27 +94,27 @@ generatePeerConfigs() {
       PEER_LOOKUP=$(set | egrep "${PEER_BASE}_(LOOKUP|RESOLVE)" | cut -f2- -d'=')
       PEER_KEEPALIVE=$(set | egrep "${PEER_BASE}_(KEEPALIVE)" | cut -f2- -d'=')
       PEER_SUBNETS=$(set | egrep "${PEER_BASE}_(SUBNETS)" | cut -f2- -d'=')
-  
+
       echo ""
       echo "[Peer]"
       echo "PublicKey = ${PEER_KEY}"
 
-      if [ "${PEER_PSK}" != "" ] ; then
+      if [ "${PEER_PSK}" != "" ]; then
         echo "PresharedKey = ${PEER_PSK}"
       fi
 
-      if [ "${PEER_PORT}" = "" ] ; then
-	      PEER_PORT=${SERVER_PORT:-51820}
+      if [ "${PEER_PORT}" = "" ]; then
+        PEER_PORT=${SERVER_PORT:-51820}
       fi
 
-      if [ "${PEER_LOOKUP}" = "true" ] || [ "${PEER_LOOKUP}" != 0 ] ; then
-	REMOTE_ADDR=$(lookupPeerV4 ${PEER_ADDR})
+      if [ "${PEER_LOOKUP}" = "true" ] || [ "${PEER_LOOKUP}" != 0 ]; then
+        REMOTE_ADDR=$(lookupPeerV4 ${PEER_ADDR})
 
-	if [ "${REMOTE_ADDR}" != "" ] ; then
-	  echo -n "Endpoint = ${REMOTE_ADDR}"
-	else
-	  echo -n "Endpoint = ${PEER_ADDR}"
-	fi
+        if [ "${REMOTE_ADDR}" != "" ]; then
+          echo -n "Endpoint = ${REMOTE_ADDR}"
+        else
+          echo -n "Endpoint = ${PEER_ADDR}"
+        fi
       else
         echo -n "Endpoint = ${PEER_ADDR}"
       fi
@@ -125,16 +123,16 @@ generatePeerConfigs() {
 
       echo -n "AllowedIPs = ${REMOTE_SUBNETS}"
 
-      if [ "${PEER_SUBNETS}" != "" ] ; then
-	echo ",${PEER_SUBNETS}"
+      if [ "${PEER_SUBNETS}" != "" ]; then
+        echo ",${PEER_SUBNETS}"
       else
-	echo ""
+        echo ""
       fi
 
-      if [ "${PEER_KEEPALIVE}" != "" ] ; then
+      if [ "${PEER_KEEPALIVE}" != "" ]; then
         echo "PersistentKeepalive = ${PEER_KEEPALIVE}"
       fi
-  
+
     done
   } > /data/peers.conf
 
@@ -150,37 +148,35 @@ saveDefaultRouterV4() {
   ip route | egrep default | awk '{ print $3 }' > ${DEFAULT_ROUTER_V4_FILE}
 }
 
-valid_ipv4_ip()
-{
-  local  ip=$1
-  local  stat=1
-  
+valid_ipv4_ip() {
+  local ip=$1
+  local stat=1
+
   if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
     OIFS=$IFS
     IFS='.'
     ip=($ip)
     IFS=$OIFS
     [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
-      stat=$?
+    stat=$?
   fi
-  
+
   return $stat
 }
 
-valid_ipv4_subnet()
-{
-  local  ip=$1
-  local  stat=1
-  
+valid_ipv4_subnet() {
+  local ip=$1
+  local stat=1
+
   if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\/[0-9]{1,3}$ ]]; then
     OIFS=$IFS
     IFS='.'
     ip=($ip)
     IFS=$OIFS
     [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
-      stat=$?
+    stat=$?
   fi
-  
+
   return $stat
 }
 
