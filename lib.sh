@@ -6,7 +6,23 @@ if [ -e .env ]; then
   . .env
 fi
 
-valid_subnet() {
+valid_ipv4_ip() {
+  local ip=$1
+  local stat=1
+
+  if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+    OIFS=$IFS
+    IFS='.'
+    ip=($ip)
+    IFS=$OIFS
+    [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
+    stat=$?
+  fi
+
+  return $stat
+}
+
+valid_ipv4_subnet() {
   local ip=$1
   local stat=1
 
@@ -15,8 +31,7 @@ valid_subnet() {
     IFS='.'
     ip=($ip)
     IFS=$OIFS
-    [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 &&
-      ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
+    [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
     stat=$?
   fi
 
@@ -25,16 +40,6 @@ valid_subnet() {
 
 docker_iptables_interface_dump() {
   echo docker_iptables_interface_dump $@
-}
-
-docker_iptables_interface_allow() {
-  echo "Adding from $1 to $2"
-  iptables -I DOCKER-USER -i $1 -o $2 -j ACCEPT
-}
-
-docker_iptables_interface_delete() {
-  echo "Deleting from $1 to $2"
-  iptables -D DOCKER-USER -i $1 -o $2 -j ACCEPT
 }
 
 upnp_add() {
@@ -94,30 +99,6 @@ compose_stop() {
   compose_handle
 }
 
-compose_get_interfaces() {
-  DEFAULTINTERFACE=$(ip route | egrep default | egrep dev | perl -pe 's/.*\ dev\ (.*)\ proto\ .*/$1/g')
-
-  SUBNETS=$(docker-compose config | egrep 'IP|SUBNET' | sort -u | awk '{ print $2 }' | tr ',' '\n' | egrep -v :: | sort -u | cut -f1 -d'/' | xargs)
-
-  INTERFACES=""
-
-  for SUBNET in ${SUBNETS}; do
-    IF=$(ip route get ${SUBNET} | egrep dev | perl -pe 's/.*\ dev\ (.*)\ src\ .*/$1/g')
-
-    if [ "$(echo "${INTERFACES}" | egrep "${IF}")" = "" ]; then
-      INTERFACES="${INTERFACES} ${IF}"
-    fi
-  done
-
-  for IIF in ${INTERFACES}; do
-    for OIF in ${INTERFACES}; do
-      if [ "${IIF}" != "${OIF}" ]; then
-        $1 ${IIF} ${OIF}
-      fi
-    done
-  done
-}
-
 compose_get_ports() {
   docker-compose config | egrep SERVER_PORT | awk '{ print $2 }' | cut -f2 -d"'" | while read PORTDEF; do
 
@@ -135,11 +116,35 @@ compose_get_routes() {
     GATEWAYV4=$(echo ${CONTAINER_INFO} | tr '#' '\n' | egrep ipv4_address | awk '{ print $2 }')
 
     echo ${SUBNETS} | tr ',' '\n' | while read SUBNET; do
-      if valid_subnet ${SUBNET}; then
+      if valid_ipv4_subnet ${SUBNET}; then
         $1 ${SUBNET} ${GATEWAYV4}
       fi
     done
   done
+}
+
+compose_get_traffic_rules() {
+  DEFAULTINTERFACE=$(ip route | egrep default | egrep dev | perl -pe 's/.*\ dev\ (.*)\ proto\ .*/$1/g')
+
+  INGRESS_SUBNET=$(docker-compose config | egrep 'LOCAL_SUBNETS' | awk '{ print $2 }' | tr ',' '\n' | egrep -v '::' | xargs | tr ' ' ',')
+  EGRESS_SUBNET=$(docker-compose config | egrep 'REMOTE_SUBNETS|PEER_._SUBNETS' | awk '{ print $2 }' | tr ',' '\n' | egrep -v '::' | xargs | tr ' ' ',')
+
+  $1 ${INGRESS_SUBNET} ${EGRESS_SUBNET}
+  $1 ${EGRESS_SUBNET} ${INGRESS_SUBNET}
+}
+
+docker_traffic_dump() {
+  echo docker_traffic_dump $@
+}
+
+docker_traffic_allow() {
+  echo "Adding from $1 to $2"
+  echo iptables -I DOCKER-USER -s $1 -d $2 -j ACCEPT
+}
+
+docker_traffic_delete() {
+  echo "Deleting from $1 to $2"
+  echo iptables -D DOCKER-USER -s $1 -d $2 -j ACCEPT
 }
 
 lib() {
@@ -156,6 +161,7 @@ attach() {
   compose_start
   compose_get_ports upnp_add
   compose_get_routes routes_add
+  compose_get_traffic_rules docker_traffic_allow
   compose_attach
 }
 
@@ -165,13 +171,13 @@ start() {
   compose_start
   compose_get_ports upnp_add
   compose_get_routes routes_add
-  compose_get_interfaces docker_iptables_interface_allow
+  compose_get_traffic_rules docker_traffic_allow
 }
 
 stop() {
   echo "Stopping..."
 
-  compose_get_interfaces docker_iptables_interface_delete
+  compose_get_traffic_rules docker_traffic_delete
   compose_get_ports upnp_remove
   compose_get_routes routes_remove
   compose_stop
