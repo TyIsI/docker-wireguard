@@ -139,12 +139,12 @@ docker_traffic_dump() {
 
 docker_traffic_allow() {
   echo "Adding from $1 to $2"
-  echo iptables -I DOCKER-USER -s $1 -d $2 -j ACCEPT
+  iptables -I DOCKER-USER -s $1 -d $2 -j ACCEPT
 }
 
 docker_traffic_delete() {
   echo "Deleting from $1 to $2"
-  echo iptables -D DOCKER-USER -s $1 -d $2 -j ACCEPT
+  iptables -D DOCKER-USER -s $1 -d $2 -j ACCEPT
 }
 
 lib() {
