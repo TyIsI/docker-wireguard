@@ -23,6 +23,20 @@ valid_subnet() {
   return $stat
 }
 
+docker_iptables_interface_dump() {
+  echo docker_iptables_interface_dump $@
+}
+
+docker_iptables_interface_allow() {
+  echo "Adding from $1 to $2"
+  iptables -I DOCKER-USER -i $1 -o $2 -j ACCEPT
+}
+
+docker_iptables_interface_delete() {
+  echo "Deleting from $1 to $2"
+  iptables -D DOCKER-USER -i $1 -o $2 -j ACCEPT
+}
+
 upnp_add() {
   if [ "$UPNP_ENABLED" = "YES" ]; then
     upnpc -e "${HOSTNAME} - $1" -r $2 $2 $3 || true
@@ -80,6 +94,30 @@ compose_stop() {
   compose_handle
 }
 
+compose_get_interfaces() {
+  DEFAULTINTERFACE=$(ip route | egrep default | egrep dev | perl -pe 's/.*\ dev\ (.*)\ proto\ .*/$1/g')
+
+  SUBNETS=$(docker-compose config | egrep 'IP|SUBNET' | sort -u | awk '{ print $2 }' | tr ',' '\n' | egrep -v :: | sort -u | cut -f1 -d'/' | xargs)
+
+  INTERFACES=""
+
+  for SUBNET in ${SUBNETS}; do
+    IF=$(ip route get ${SUBNET} | egrep dev | perl -pe 's/.*\ dev\ (.*)\ src\ .*/$1/g')
+
+    if [ "$(echo "${INTERFACES}" | egrep "${IF}")" = "" ]; then
+      INTERFACES="${INTERFACES} ${IF}"
+    fi
+  done
+
+  for IIF in ${INTERFACES}; do
+    for OIF in ${INTERFACES}; do
+      if [ "${IIF}" != "${OIF}" ]; then
+        $1 ${IIF} ${OIF}
+      fi
+    done
+  done
+}
+
 compose_get_ports() {
   docker-compose config | egrep SERVER_PORT | awk '{ print $2 }' | cut -f2 -d"'" | while read PORTDEF; do
 
@@ -113,6 +151,8 @@ lib() {
 }
 
 attach() {
+  echo "Attaching..."
+
   compose_start
   compose_get_ports upnp_add
   compose_get_routes routes_add
@@ -120,32 +160,44 @@ attach() {
 }
 
 start() {
+  echo "Starting..."
+
   compose_start
   compose_get_ports upnp_add
   compose_get_routes routes_add
+  compose_get_interfaces docker_iptables_interface_allow
 }
 
 stop() {
+  echo "Stopping..."
+
+  compose_get_interfaces docker_iptables_interface_delete
   compose_get_ports upnp_remove
   compose_get_routes routes_remove
   compose_stop
 }
 
 restart() {
+  echo "Restarting..."
+
   ./stop
   ./start
 }
 
 check() {
+  echo "Checking..."
+
   docker-compose ps
 }
 
 monitor() {
+  echo "Monitoring..."
+
   docker-compose logs -f
 }
 
 CMD=$(basename $0 | sed 's/\.sh//g')
 
-echo "${CMD^}ing..."
-
-$CMD
+if [ "${CMD}" != "lib" ]; then
+  $CMD
+fi
