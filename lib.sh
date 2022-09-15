@@ -85,7 +85,7 @@ compose_get_ports() {
 
     IF_NAME=$(docker-compose config | egrep 'container_name|SERVER_PORT' | egrep -B 1 ${PORTDEF} | egrep container_name | awk '{ print $2 }')
 
-    $1 ${IF_NAME} ${PORTDEF} ${PROTO}
+    $1 ${IF_NAME} ${PORTDEF} UDP
   done
 }
 
